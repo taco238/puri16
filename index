@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L判 JPEG生成 24×15.5mm 4×4</title>
+</head>
+<body style="font-family:sans-serif; margin:20px;">
+<h2>画像を選んで L判JPEG作成</h2>
+<p>24×15.5mm×16枚（1枚選択でも繰り返し配置）中央余白あり</p>
+
+<input id="files" type="file" accept="image/*" multiple>
+<button id="make" disabled>JPEG作成</button>
+<p id="status"></p>
+
+<script>
+(() => {
+  const input=document.getElementById("files");
+  const btn=document.getElementById("make");
+  const status=document.getElementById("status");
+  let imgs=[];
+
+  input.addEventListener("change",async e=>{
+    const files=[...e.target.files];
+    imgs = [];
+    for(const f of files) imgs.push(await loadImage(f));
+    if(imgs.length>0){
+      status.textContent=`${imgs.length}枚読み込み`;
+      btn.disabled=false;
+    }
+  });
+
+  function loadImage(file){
+    return new Promise(res=>{
+      const r=new FileReader();
+      r.onload=()=>{
+        const img=new Image();
+        img.onload=()=>res(img);
+        img.src=r.result;
+      };
+      r.readAsDataURL(file);
+    });
+  }
+
+  btn.addEventListener("click", async ()=>{
+    const PAGE_W=127, PAGE_H=89; //mm L判横
+    const CELL_W=24, CELL_H=15.5;  // ← 高さ修正ポイント
+    const COL=4, ROW=4;
+
+    const GRID_W=CELL_W*COL; // 96mm
+    const GRID_H=CELL_H*ROW; // 62mm
+
+    //JPEG用キャンバス / 300dpi相当
+    const dpi=300, px= dpi/25.4;
+    const canvas=document.createElement("canvas");
+    canvas.width = Math.round(PAGE_W * px);
+    canvas.height = Math.round(PAGE_H * px);
+    const ctx=canvas.getContext("2d");
+
+    // 背景白塗り
+    ctx.fillStyle="white";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    const startX=(PAGE_W-GRID_W)/2*px;
+    const startY=(PAGE_H-GRID_H)/2*px;
+    const w=CELL_W*px;
+    const h=CELL_H*px;
+
+    // ★比率を24:15.5へ変更
+    const asp = CELL_W / CELL_H;  // ≒1.548
+
+    for(let i=0;i<16;i++){
+      const img = imgs[i] || imgs[i % imgs.length];
+
+      let sx=0,sy=0,sw=img.width,sh=img.height;
+      const imgAsp = img.width / img.height;
+
+      if(imgAsp > asp){ sw=img.height*asp; sx=(img.width-sw)/2; }
+      else{ sh=img.width/asp; sy=(img.height-sh)/2; }
+
+      const col=i%COL,row=(i/COL)|0;
+      ctx.drawImage(img,sx,sy,sw,sh,startX+col*w,startY+row*h,w,h);
+    }
+
+    // JPG書き出し
+    const url=canvas.toDataURL("image/jpeg",0.95);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download="Lsize_24x15.5mm_x16.jpg";
+    a.click();
+
+    status.textContent="JPGを保存しました";
+  });
+})();
+</script>
+</body>
+</html>
